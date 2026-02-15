@@ -1,0 +1,1507 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+  <title>Prototype Game — Pet Reflection (Tom-style, v3)</title>
+  <style>
+    :root{
+      --ink: rgba(255,255,255,.94);
+      --muted: rgba(255,255,255,.72);
+      --line: rgba(255,255,255,.14);
+      --glass: rgba(255,255,255,.08);
+      --glass2: rgba(255,255,255,.12);
+      --shadow: 0 18px 70px rgba(0,0,0,.38);
+      --accent: #7b7cff;
+      --accent2:#ff6aa8;
+      --danger:#ff3b5c;
+      --r: 18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%; margin:0; overflow:hidden; font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial; background:#070914; color:var(--ink);}
+
+    .stage{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      padding: 14px;
+      background:
+        radial-gradient(1200px 800px at 70% 10%, rgba(27,32,85,.85) 0%, transparent 60%),
+        radial-gradient(1200px 800px at 15% 25%, rgba(58,23,49,.75) 0%, transparent 62%),
+        linear-gradient(180deg, #0f1230, #070914);
+    }
+    .frame{
+      width:min(1024px, 100%);
+      height:min(780px, 100%);
+      border-radius: 28px;
+      border: 1px solid rgba(255,255,255,.12);
+      box-shadow: var(--shadow);
+      position:relative;
+      overflow:hidden;
+      background: rgba(0,0,0,.22);
+      isolation:isolate;
+    }
+    .frame::before{
+      content:"";
+      position:absolute; inset:0;
+      pointer-events:none;
+      opacity:.95;
+      background:
+        radial-gradient(900px 520px at 70% 18%, rgba(123,124,255,.18), transparent 60%),
+        radial-gradient(900px 520px at 20% 22%, rgba(255,106,168,.14), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.01));
+      z-index:-1;
+      transition: opacity .25s ease, filter .25s ease;
+    }
+    .frame.theme-home::before{ filter: saturate(1.05) contrast(1.02); }
+    .frame.theme-wardrobe::before{
+      background:
+        radial-gradient(900px 520px at 30% 20%, rgba(255,190,80,.14), transparent 62%),
+        radial-gradient(900px 520px at 75% 18%, rgba(123,124,255,.12), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+    }
+    .frame.theme-story::before{
+      background:
+        radial-gradient(900px 520px at 30% 20%, rgba(255,106,168,.12), transparent 62%),
+        radial-gradient(900px 520px at 75% 18%, rgba(80,255,200,.10), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+    }
+    .frame.theme-missions::before{
+      background:
+        radial-gradient(900px 520px at 28% 18%, rgba(123,124,255,.14), transparent 62%),
+        radial-gradient(900px 520px at 72% 22%, rgba(255,106,168,.10), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.01));
+    }
+    .frame.theme-reflection::before{
+      opacity: 1;
+      background:
+        radial-gradient(1000px 600px at 50% 18%, rgba(123,124,255,.12), transparent 62%),
+        radial-gradient(1000px 600px at 50% 42%, rgba(255,255,255,.06), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+    }
+    .frame.theme-calm::before{
+      opacity: 1;
+      background:
+        radial-gradient(1100px 700px at 50% 22%, rgba(80,255,200,.12), transparent 66%),
+        radial-gradient(900px 520px at 70% 10%, rgba(123,124,255,.10), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.025), rgba(255,255,255,.01));
+      filter: saturate(1.1);
+    }
+
+    /* HUD (top) */
+    .hud{
+      position:absolute; left:0; right:0; top:0;
+      padding: 12px;
+      display:flex; justify-content:space-between; align-items:flex-start;
+      gap:10px;
+      z-index: 30;
+      pointer-events:none;
+    }
+    .hud .left, .hud .right{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+      pointer-events:none;
+    }
+    .pill{
+      display:flex; align-items:center; gap:8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: var(--glass);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+      font-size: 12px;
+      color: var(--muted);
+      white-space:nowrap;
+    }
+    .pill strong{color:var(--ink); font-weight: 900;}
+
+    /* XP mini (bottom-left) */
+    .xpmini{
+      position:absolute; left: 12px; bottom: 12px;
+      width: 220px;
+      background: rgba(0,0,0,.28);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,.22);
+      padding: 8px 10px;
+      z-index: 45;
+      pointer-events:none;
+    }
+    .row{display:flex; justify-content:space-between; align-items:center; gap:10px;}
+    .small{font-size: 12px; line-height:1.35; color: var(--muted);}
+    .xpmini .small{font-size:11px}
+    .bar{height: 8px; border-radius: 999px; overflow:hidden; background: rgba(0,0,0,.28); margin-top:6px;}
+    .bar > div{height:100%; width:0%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius:999px; transition: width .25s ease;}
+    .frame:not(.theme-home) .xpHint{display:none;}
+    .xpHint{margin-top:6px; font-size:11px; color: rgba(255,255,255,.78);}
+
+    @media (max-width: 520px){
+      .xpmini{ width: 190px; left: 10px; bottom: 80px; }
+    }
+
+    /* Toast */
+    .toast{
+      position:absolute; left:50%; transform:translateX(-50%) translateY(-8px);
+      top: 58px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.40);
+      border: 1px solid rgba(255,255,255,.12);
+      backdrop-filter: blur(10px);
+      font-size: 12px;
+      font-weight: 900;
+      opacity: 0;
+      pointer-events:none;
+      transition: opacity .18s ease, transform .18s ease;
+      z-index: 60;
+    }
+    .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+    /* Hotbar */
+    .hotbar{
+      position:absolute; left:50%; transform: translateX(-50%);
+      bottom: 12px;
+      padding: 10px;
+      border-radius: 999px;
+      background: var(--glass2);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+      display:flex; gap:10px; flex-wrap:wrap;
+      justify-content:center; align-items:center;
+      z-index: 40;
+      box-shadow: 0 10px 35px rgba(0,0,0,.28);
+    }
+    .btn{
+      border:none; cursor:pointer; user-select:none;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.14);
+      color: rgba(255,255,255,.92);
+      font-weight: 900;
+      letter-spacing:.2px;
+      transition: transform .05s ease, opacity .2s ease;
+    }
+    .btn:active{transform: translateY(1px)}
+    .btn.primary{background: linear-gradient(90deg, var(--accent), var(--accent2)); border:0;}
+    .btn.ghost{background: transparent;}
+    .btn[disabled]{opacity:.5; cursor:not-allowed;}
+
+    /* Screens */
+    .screens{position:absolute; inset:0; z-index: 10;}
+    .screen{
+      position:absolute; inset:0;
+      padding: 62px 14px 118px;
+      opacity: 0;
+      transform: translateX(18px) scale(.992);
+      pointer-events:none;
+      transition: opacity .18s ease, transform .18s ease;
+    }
+    .screen.active{
+      opacity: 1;
+      transform: translateX(0) scale(1);
+      pointer-events:auto;
+    }
+
+    /* Home room props */
+    .room, .floor, .prop, .plantleaf { position:absolute; z-index: 12; }
+    .room{ inset:0; }
+    .floor{
+      left: 14px; right: 14px; bottom: 86px; height: 195px;
+      border-radius: 22px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.08);
+    }
+    .prop{
+      border-radius: 16px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+    }
+    .shelf1{left: 44px; top: 98px; width: 250px; height: 56px;}
+    .shelf2{left: 70px; top: 172px; width: 176px; height: 46px;}
+    .plantpot{right: 66px; bottom: 256px; width: 74px; height: 54px;}
+    .plantleaf{
+      right: 70px; bottom: 312px;
+      width: 92px; height: 74px;
+      border-radius: 999px;
+      background: radial-gradient(70px 50px at 60% 60%, rgba(80,255,200,.18), transparent 65%);
+      filter: blur(.2px);
+    }
+    .frame:not(.theme-home) .room,
+    .frame:not(.theme-home) .floor,
+    .frame:not(.theme-home) .prop,
+    .frame:not(.theme-home) .plantleaf{
+      display:none !important;
+    }
+
+    /* Pet */
+    .petWrap{
+      position:absolute; left:50%; top: 52%;
+      transform: translate(-50%,-50%);
+      display:flex; flex-direction:column; align-items:center; gap:10px;
+      z-index: 20;
+    }
+    .bubble{
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.12);
+      backdrop-filter: blur(10px);
+      font-size: 12px;
+      color: rgba(255,255,255,.90);
+      max-width: min(560px, calc(100vw - 48px));
+      text-align:center;
+    }
+    .pet{
+      width: 140px; height: 140px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.16);
+      box-shadow: 0 20px 70px rgba(0,0,0,.35);
+      display:flex; align-items:center; justify-content:center;
+      position:relative;
+      cursor:pointer;
+      user-select:none;
+      animation: bob 2.8s ease-in-out infinite;
+      transform-origin: 50% 60%;
+    }
+    @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+    .pet:active{transform: translateY(-6px) scale(.992);}
+    .petGlow{
+      position:absolute; inset:-34px;
+      border-radius: 999px;
+      background: radial-gradient(110px 110px at 50% 50%, rgba(255,255,255,.10), transparent 66%);
+      z-index:-1;
+      transition: background .25s ease, opacity .25s ease;
+      filter: blur(.2px);
+    }
+    .petEmoji{font-size: 60px; filter: drop-shadow(0 16px 20px rgba(0,0,0,.26));}
+    .petAcc{
+      position:absolute; top:-12px; left:50%; transform:translateX(-50%);
+      font-size: 32px; opacity:.95;
+    }
+    .petMood{
+      position:absolute; right:-8px; top:-8px;
+      font-size: 26px;
+    }
+    .petPulse{
+      position:absolute; inset:-8px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,.10);
+      opacity: 0;
+      transform: scale(.92);
+      pointer-events:none;
+    }
+    .pet.pat .petPulse{ animation: pulse .45s ease-out 1; }
+    @keyframes pulse{
+      0%{opacity:.0; transform:scale(.92)}
+      30%{opacity:.55}
+      100%{opacity:0; transform:scale(1.08)}
+    }
+    .shadow{
+      width: 150px; height: 28px;
+      background: rgba(0,0,0,.30);
+      border-radius: 999px;
+      filter: blur(.2px);
+      margin-top: -8px;
+    }
+    .homeButtons{
+      margin-top: 6px;
+      display:flex; gap:10px; flex-wrap:wrap; justify-content:center;
+      z-index: 21;
+    }
+    .homeBtn{
+      padding: 10px 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.08);
+      backdrop-filter: blur(10px);
+      font-weight: 900;
+      font-size: 12px;
+      cursor:pointer;
+      color: rgba(255,255,255,.92);
+      transition: transform .05s ease, opacity .2s ease;
+    }
+    .homeBtn:active{transform: translateY(1px);}
+    .homeBtn.primary{background: linear-gradient(90deg, var(--accent), var(--accent2)); border:0;}
+    .homeBtn[disabled]{opacity:.5; cursor:not-allowed;}
+
+    /* Panels */
+    .panel{
+      max-width: 940px;
+      margin: 0 auto;
+      display:grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 12px;
+    }
+    @media (max-width: 900px){ .panel{grid-template-columns:1fr;} }
+    .card{
+      border-radius: 22px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 38px rgba(0,0,0,.22);
+      padding: 12px;
+    }
+    .card h2{
+      margin:0 0 8px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing:.35px;
+      color: rgba(255,255,255,.90);
+    }
+    .sep{height:1px; background: rgba(255,255,255,.10); margin: 10px 0;}
+    textarea, input[type="text"]{
+      width:100%;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: rgba(255,255,255,.92);
+      padding: 10px 12px;
+      outline:none;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    textarea{min-height: 150px; resize: vertical;}
+    .tag{
+      display:inline-flex; align-items:center; gap:8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.12);
+      color: rgba(255,255,255,.88);
+      font-size: 12px;
+      width: fit-content;
+    }
+
+    /* Missions */
+    .stack{display:flex; flex-direction:column; gap:10px;}
+    .mission{
+      border-radius: 18px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.12);
+      padding: 10px;
+      display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
+    }
+    .mission .t{font-weight:900; font-size: 13px; color: rgba(255,255,255,.92);}
+    .mission .d{font-size: 12px; color: rgba(255,255,255,.78); margin-top:4px; line-height:1.35;}
+    .dangerBox{
+      border-radius: 18px;
+      border: 1px solid rgba(255,59,92,.30);
+      background: rgba(255,59,92,.12);
+      padding: 12px;
+      color: rgba(255,255,255,.92);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    /* Wardrobe */
+    .wardrobe{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    @media (max-width: 560px){ .wardrobe{grid-template-columns: repeat(2, 1fr);} }
+    .item{
+      border-radius: 18px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.12);
+      padding: 10px;
+      display:flex; flex-direction:column; gap: 8px;
+    }
+    .item .icon{font-size: 26px;}
+    .item .name{font-weight: 900; font-size: 12px;}
+    .item .req{font-size: 12px; color: rgba(255,255,255,.78);}
+
+    /* Reflection */
+    .qTop{
+      display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+    }
+    .qBar{height:10px; border-radius:999px; background: rgba(0,0,0,.28); overflow:hidden; margin-top:10px;}
+    .qBar > div{height:100%; width:0%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius:999px; transition: width .25s ease;}
+    .kbd{
+      display:inline-flex; align-items:center; gap:8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.22);
+      border: 1px solid rgba(255,255,255,.10);
+      color: rgba(255,255,255,.86);
+      font-size: 12px;
+      width: fit-content;
+    }
+
+    /* Calm */
+    .calmBadge{
+      display:inline-flex; align-items:center; gap:8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(80,255,200,.10);
+      border: 1px solid rgba(80,255,200,.18);
+      color: rgba(255,255,255,.90);
+      font-size: 12px;
+      font-weight: 900;
+      width: fit-content;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="stage">
+    <div class="frame theme-home" id="frame">
+      <div class="toast" id="toast">+10 XP</div>
+
+      <!-- Calm music file -->
+      <audio id="calmAudio" preload="auto" loop>
+        <source src="calm.mp3" type="audio/mpeg">
+      </audio>
+
+      <!-- HUD -->
+      <div class="hud">
+        <div class="left">
+          <div class="pill">📅 <span id="today">-</span></div>
+          <div class="pill">🔥 Streak <strong id="streak">0</strong></div>
+          <div class="pill">🎭 <strong id="emotion">Neutral</strong></div>
+        </div>
+        <div class="right">
+          <div class="pill">🔒 <span id="gate">Refleksi belum selesai</span></div>
+        </div>
+      </div>
+
+      <!-- XP mini -->
+      <div class="xpmini">
+        <div class="row">
+          <div class="small">Lv <strong id="level">1</strong></div>
+          <div class="small"><strong id="xp">0</strong>/<span id="xpNeed">60</span></div>
+        </div>
+        <div class="bar"><div id="xpBar"></div></div>
+        <div class="xpHint" id="xpHint">Refleksi membuka misi. Pet tidak memberi XP.</div>
+      </div>
+
+      <!-- HOME room props -->
+      <div class="room"></div>
+      <div class="floor"></div>
+      <div class="prop shelf1"></div>
+      <div class="prop shelf2"></div>
+      <div class="prop plantpot"></div>
+      <div class="plantleaf"></div>
+
+      <div class="screens">
+        <!-- HOME -->
+        <section class="screen active" id="screen-home">
+          <div class="petWrap">
+            <div class="bubble" id="petBubble">Aku di sini. Kita pelan-pelan.</div>
+
+            <div class="pet" id="pet">
+              <div class="petGlow" id="petGlow"></div>
+              <div class="petAcc" id="petAcc"></div>
+              <div class="petMood" id="petMood"></div>
+              <div class="petPulse"></div>
+              <div class="petEmoji" id="petEmoji">🐣</div>
+            </div>
+
+            <div class="shadow"></div>
+
+            <div class="homeButtons">
+              <button class="homeBtn" id="home-wardrobe">Lemari</button>
+              <button class="homeBtn" id="home-story">Cerita</button>
+              <button class="homeBtn" id="home-missions">Misi</button>
+              <button class="homeBtn" id="home-calm">Tenang</button>
+              <button class="homeBtn primary" id="home-reflection">Refleksi</button>
+            </div>
+
+            <div class="small" style="margin-top:8px; text-align:center; max-width:640px">
+              Ini simulasi perawatan simbolik. Tidak ada ranking. Tidak ada hukuman. Progres bersifat personal.
+            </div>
+          </div>
+        </section>
+
+        <!-- WARDROBE -->
+        <section class="screen" id="screen-wardrobe">
+          <div class="panel">
+            <div class="card">
+              <h2>Lemari</h2>
+              <div class="small">Kosmetik tidak memengaruhi performa. Ini progres simbolik.</div>
+              <div class="sep"></div>
+              <div class="wardrobe" id="wardrobeGrid"></div>
+            </div>
+            <div class="card">
+              <h2>Status</h2>
+              <div class="tag" id="equippedTag">Dipakai: -</div>
+              <div class="sep"></div>
+              <div class="small">
+                Item terbuka lewat level. Tidak ada “yang terbaik”. Pilih yang terasa cocok.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- STORY -->
+        <section class="screen" id="screen-story">
+          <div class="panel">
+            <div class="card">
+              <h2>Cerita Bebas</h2>
+              <div class="small">Tulis kapan saja. Tidak dinilai. Tidak dipublikasikan.</div>
+              <div class="sep"></div>
+              <textarea id="storyText" placeholder="Tulis apa pun. Kamu tidak perlu rapi."></textarea>
+              <div class="row" style="margin-top:10px; gap:8px; flex-wrap:wrap; justify-content:flex-end">
+                <button class="btn ghost" id="btnStoryClear">Kosongkan</button>
+                <button class="btn primary" id="btnStorySave">Simpan</button>
+              </div>
+              <div class="small" style="margin-top:8px" id="storySaved">Belum ada yang disimpan.</div>
+            </div>
+            <div class="card">
+              <h2>Privasi</h2>
+              <div class="small">Data disimpan lokal di perangkat. Kamu bisa export/import.</div>
+              <div class="sep"></div>
+              <div class="row" style="gap:8px; flex-wrap:wrap; justify-content:flex-start">
+                <button class="btn ghost" id="btnExport">Export</button>
+                <button class="btn ghost" id="btnImport">Import</button>
+                <button class="btn ghost" id="btnWipe" style="border-color: rgba(255,59,92,.28); background: rgba(255,59,92,.10);">Hapus Data</button>
+              </div>
+              <div class="sep"></div>
+              <div class="small" id="trend">Tren 7 hari: -</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- MISSIONS -->
+        <section class="screen" id="screen-missions">
+          <div class="panel">
+            <div class="card">
+              <h2>Misi Hari Ini</h2>
+              <div class="small">Tidak wajib. Tidak ada hukuman. Pilih yang paling ringan.</div>
+              <div class="sep"></div>
+              <div class="stack" id="missionsList"></div>
+            </div>
+            <div class="card">
+              <h2>Ringkas</h2>
+              <div class="small" id="missionsNote">Selesaikan refleksi dulu untuk membuka misi.</div>
+              <div class="sep"></div>
+              <div class="tag" id="missionsCount">0/0 selesai</div>
+              <div class="sep"></div>
+              <div class="small">
+                Reward itu kecil. Yang penting: konsistensi tanpa tekanan.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- CALM -->
+        <section class="screen" id="screen-calm">
+          <div class="panel">
+            <div class="card">
+              <h2>Mode Tenang</h2>
+              <div class="calmBadge">🎵 Musik otomatis menyala di Mode Tenang</div>
+              <div class="sep"></div>
+              <div style="text-align:center; padding: 10px 0;">
+                <div style="font-size:64px">🐣🌿</div>
+                <div style="font-weight:900; margin-top:8px">Tidak perlu produktif di sini.</div>
+                <div class="small" style="margin-top:8px">
+                  Coba 4 hitungan masuk, 6 hitungan keluar. Tanpa memaksa.
+                </div>
+              </div>
+              <div class="sep"></div>
+              <div class="small">Catatan: kalau browser memblokir audio, cukup klik tombol “Tenang” sekali lagi.</div>
+            </div>
+            <div class="card">
+              <h2>Catatan Kecil (opsional)</h2>
+              <div class="small">Tulis 1 kalimat: “yang aku butuhkan sekarang …”</div>
+              <div class="sep"></div>
+              <input type="text" id="calmNote" placeholder="Contoh: ruang, air, tidur, didengar…"/>
+              <div class="small" style="margin-top:8px; opacity:.9" id="calmSaved">Belum ada catatan.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- REFLECTION -->
+        <section class="screen" id="screen-reflection">
+          <div class="panel">
+            <div class="card">
+              <h2>Refleksi Harian</h2>
+
+              <div class="qTop">
+                <div class="kbd" id="qProgress">Pertanyaan 1/6</div>
+                <div class="kbd" id="qTag">#tag</div>
+              </div>
+
+              <div class="qBar"><div id="qBarFill"></div></div>
+
+              <div class="sep"></div>
+              <div class="small" id="qText">-</div>
+              <div class="sep"></div>
+              <textarea id="qAnswer" placeholder="Tulis bebas. Singkat boleh. Tidak ada benar/salah."></textarea>
+
+              <div class="row" style="margin-top:10px; gap:8px; flex-wrap:wrap; justify-content:space-between">
+                <div class="small" id="refInfo">Selesaikan refleksi untuk membuka misi.</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end">
+                  <button class="btn ghost" id="btnPrevQ">Prev</button>
+                  <button class="btn" id="btnNextQ">Next</button>
+                  <button class="btn primary" id="btnFinishReflection">Selesai</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h2>Safety</h2>
+              <div class="small">
+                Game ini tidak mendiagnosis dan bukan pengganti bantuan profesional.
+                Jika terdeteksi kata ekstrem, flow normal dihentikan.
+              </div>
+              <div class="sep"></div>
+              <div class="dangerBox" id="safetyBox" style="display:none">
+                Sistem mendeteksi kata yang terdengar sangat berat.  
+                Game ini tidak bisa menggantikan bantuan profesional.  
+                <br><br>
+                Jika kamu merasa berisiko menyakiti diri, langkah paling aman adalah menghubungi orang tepercaya sekarang
+                (keluarga/teman/guru) atau layanan bantuan setempat.
+              </div>
+              <div class="sep"></div>
+              <div class="small" id="reflectionMeta">-</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Hotbar -->
+      <div class="hotbar">
+        <button class="btn ghost" id="nav-home">Home</button>
+        <button class="btn" id="nav-wardrobe">Lemari</button>
+        <button class="btn ghost" id="nav-story">Cerita</button>
+        <button class="btn" id="nav-missions">Misi</button>
+        <button class="btn ghost" id="nav-calm">Tenang</button>
+        <button class="btn primary" id="nav-reflection">Refleksi</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* =========================
+   STATE / STORAGE
+========================= */
+const STORAGE_KEY = "symbolic_companion_tomstyle_v3";
+function defaultState(){
+  return {
+    meta:{v:3},
+    player:{
+      level:1, xp:0, streak:0,
+      lastReflectionDate:"",
+      lastEmotion:"Neutral",
+      equipped:"none",
+      unlocked:["none"]
+    },
+    daily:{
+      dateKey:"",
+      reflection:{
+        done:false,
+        questions:[],
+        answers:{},
+        index:0
+      },
+      missions:[]
+    },
+    memory:{
+      emotionHistory:[], // up to 14
+      story:[],
+      calmNotes:[]
+    }
+  };
+}
+function migrate(s){
+  const d = defaultState();
+  s = s && typeof s === "object" ? s : d;
+  s.meta = s.meta || d.meta;
+  s.player = Object.assign(d.player, s.player||{});
+  s.daily = Object.assign(d.daily, s.daily||{});
+  s.memory = Object.assign(d.memory, s.memory||{});
+  if(!Array.isArray(s.player.unlocked)) s.player.unlocked = ["none"];
+  if(!s.daily.reflection) s.daily.reflection = d.daily.reflection;
+  if(!Array.isArray(s.daily.reflection.questions)) s.daily.reflection.questions = [];
+  if(!s.daily.reflection.answers || typeof s.daily.reflection.answers !== "object") s.daily.reflection.answers = {};
+  if(typeof s.daily.reflection.index !== "number") s.daily.reflection.index = 0;
+  if(!Array.isArray(s.daily.missions)) s.daily.missions = [];
+  if(!Array.isArray(s.memory.emotionHistory)) s.memory.emotionHistory = [];
+  if(!Array.isArray(s.memory.story)) s.memory.story = [];
+  if(!Array.isArray(s.memory.calmNotes)) s.memory.calmNotes = [];
+  return s;
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return defaultState();
+    return migrate(JSON.parse(raw));
+  }catch(e){ return defaultState(); }
+}
+let state = loadState();
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+/* =========================
+   DATE / DAILY RESET
+========================= */
+function todayKey(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const da = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${da}`;
+}
+function dayDiff(a,b){
+  const da = new Date(a+"T00:00:00");
+  const db = new Date(b+"T00:00:00");
+  return Math.round((db-da)/(1000*60*60*24));
+}
+
+/* =========================
+   CONTENT
+========================= */
+const COSMETICS = [
+  {id:"none", icon:"", name:"Tanpa Aksesori", req:1},
+  {id:"scarf", icon:"🧣", name:"Selimut Kecil", req:2},
+  {id:"cap", icon:"🧢", name:"Topi Santai", req:3},
+  {id:"flower", icon:"🌼", name:"Bunga Kecil", req:4},
+  {id:"star", icon:"⭐", name:"Bintang", req:5},
+  {id:"moon", icon:"🌙", name:"Bulan", req:6},
+];
+
+const QUESTION_BANK = [
+  {id:"mood_1", tag:"mood", text:"Kalau kamu menilai hari ini 1–10, kamu di angka berapa? Kenapa segitu?"},
+  {id:"mood_2", tag:"mood", text:"Emosi apa yang paling sering muncul hari ini? (boleh lebih dari satu)"},
+  {id:"body_1", tag:"body", text:"Badan kamu ngasih sinyal apa hari ini? (capek/tegang/nyaman/dll)"},
+  {id:"thought_1", tag:"thought", text:"Pikiran yang paling mengganggu hari ini apa? (tulis versi singkatnya)"},
+  {id:"need_1", tag:"need", text:"Kalau kamu boleh minta 1 hal untuk hari ini, kamu minta apa?"},
+  {id:"social_1", tag:"social", text:"Ada orang yang pengin kamu dekati atau justru kamu hindari akhir-akhir ini?"},
+  {id:"win_1", tag:"win", text:"Satu hal kecil yang kamu lakukan hari ini (meski kecil) apa?"},
+  {id:"rest_1", tag:"rest", text:"Hal paling realistis untuk kamu istirahatkan hari ini apa?"},
+  {id:"value_1", tag:"value", text:"Hal yang sebenarnya penting buat kamu minggu ini apa?"},
+  {id:"grat_1", tag:"grat", text:"Sebut 1 hal kecil yang masih bisa kamu hargai hari ini."},
+  {id:"control_1", tag:"control", text:"Apa yang bisa kamu kontrol hari ini (meski kecil)?"},
+  {id:"trigger_1", tag:"trigger", text:"Ada hal spesifik yang bikin kamu kepikiran/ke-trigger belakangan ini?"},
+  {id:"support_1", tag:"support", text:"Kalau kamu butuh dukungan, bentuk dukungan yang kamu mau itu seperti apa?"},
+  {id:"tomorrow_1", tag:"tomorrow", text:"Biar besok sedikit lebih mudah, kamu mau mengubah 1 hal apa?"},
+  {id:"pace_1", tag:"pace", text:"Hari ini kamu lebih butuh bergerak atau lebih butuh diam? Kenapa?"},
+];
+
+/* =========================
+   EMOTION ENGINE (heuristic)
+========================= */
+const HIGH_RISK = ["bunuh diri","suicide","pengen mati","ngakhiri hidup","self harm","menyakiti diri","melukai diri","gak pengen hidup"];
+const KEYWORDS = {
+  Anxious:["cemas","takut","panic","panik","deg-degan","khawatir","gelisah","tegang","overthinking"],
+  Tired:["capek","lelah","burnout","ngantuk","kosong","letih","habis","berat banget","pengen tidur"],
+  Sad:["sedih","hampa","nangis","kecewa","kesepian","sendiri","patah","jatuh","gelap"],
+  Energized:["semangat","excited","antusias","lega","optimis","berani","mantap","gas","siap"],
+  Calm:["tenang","damai","ringan","aman","nyaman","stabil","pelan","bersyukur"]
+};
+function containsHighRisk(text){
+  const low = (text||"").toLowerCase();
+  return HIGH_RISK.some(p=>low.includes(p));
+}
+function inferEmotion(text){
+  const low = (text||"").toLowerCase();
+  if(!low.trim()) return "Neutral";
+  let best="Neutral", bestScore=0;
+  for(const e in KEYWORDS){
+    let s=0;
+    for(const k of KEYWORDS[e]) if(low.includes(k)) s++;
+    if(s>bestScore){ best=e; bestScore=s; }
+  }
+  return bestScore===0 ? "Neutral" : best;
+}
+
+/* =========================
+   ADAPTIVE QUESTIONS
+========================= */
+function getTrendEmotion7d(){
+  const recent = state.memory.emotionHistory.slice(-7);
+  if(!recent.length) return "Neutral";
+  const count = {};
+  for(const r of recent) count[r.emotion] = (count[r.emotion]||0)+1;
+  let best="Neutral", bestN=0;
+  for(const k in count) if(count[k]>bestN){ best=k; bestN=count[k]; }
+  return best;
+}
+function chooseQuestionsForToday(){
+  let n = 6;
+  if(state.player.streak >= 7) n = 7;
+  if(state.player.streak >= 14) n = 8;
+
+  const trend = getTrendEmotion7d();
+  const preferredTags = [];
+  if(trend === "Anxious") preferredTags.push("need","body","thought","control");
+  if(trend === "Tired") preferredTags.push("rest","body","pace","mood");
+  if(trend === "Sad") preferredTags.push("social","support","grat","mood");
+  if(trend === "Energized") preferredTags.push("win","value","tomorrow","mood");
+  if(trend === "Calm") preferredTags.push("value","grat","tomorrow","mood");
+
+  const picked = [];
+  const used = new Set();
+
+  function pickByTag(tag){
+    const candidates = QUESTION_BANK.filter(q=>q.tag===tag && !used.has(q.id));
+    if(!candidates.length) return;
+    const q = candidates[Math.floor(Math.random()*candidates.length)];
+    used.add(q.id); picked.push(q);
+  }
+
+  for(const t of preferredTags.slice(0,3)) pickByTag(t);
+  if(!picked.some(q=>q.tag==="mood")) pickByTag("mood");
+
+  while(picked.length < n){
+    const q = QUESTION_BANK[Math.floor(Math.random()*QUESTION_BANK.length)];
+    if(used.has(q.id)) continue;
+    used.add(q.id); picked.push(q);
+  }
+
+  for(let i=picked.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [picked[i], picked[j]] = [picked[j], picked[i]];
+  }
+  return picked;
+}
+
+/* =========================
+   DAILY
+========================= */
+function autoUnlock(){
+  for(const c of COSMETICS){
+    if(state.player.level >= c.req && !state.player.unlocked.includes(c.id)){
+      state.player.unlocked.push(c.id);
+    }
+  }
+}
+function ensureDaily(){
+  const t = todayKey();
+  if(state.daily.dateKey !== t){
+    state.daily.dateKey = t;
+    state.daily.reflection = { done:false, questions: chooseQuestionsForToday(), answers:{}, index:0 };
+    state.daily.missions = [];
+    save();
+  }
+}
+function ensureDailyQuestions(){
+  const R = state.daily.reflection;
+  if(!R.questions || !R.questions.length){
+    R.questions = chooseQuestionsForToday();
+    R.answers = {};
+    R.index = 0;
+  }
+}
+
+/* =========================
+   MISSIONS
+========================= */
+function generateMissions(emotion){
+  const ms=[];
+  const add=(id,title,desc,xp,proof=false)=>ms.push({id,title,desc,xp,done:false,proof,proofText:"",proofClaimed:false});
+  switch(emotion){
+    case "Anxious":
+      add("ground","Grounding 3 menit","Sebut 5 hal yang kamu lihat. Pelan saja.",15);
+      add("water2","Minum 2 gelas kecil","Biar tubuh lebih nyaman. Tidak perlu heroik.",10,true);
+      add("desk2","Rapikan 1 sudut kecil","2 menit saja. Pilih yang paling mudah.",10);
+      break;
+    case "Tired":
+      add("stretch","Peregangan 2 menit","Gerakkan bahu/leher pelan. Bukan olahraga.",12);
+      add("sun2","Lihat cahaya luar 2 menit","Dekat jendela juga boleh.",10,true);
+      add("sleepplan","Atur 1 hal biar tidur lebih gampang","Contoh: redupkan lampu / jauhkan charger.",12);
+      break;
+    case "Sad":
+      add("tinygrat","Tulis 3 hal kecil yang masih ada","Boleh remeh: udara, lagu, satu orang.",15);
+      add("msg","Kirim pesan singkat","Ke orang tepercaya. Cukup: “lagi berat”.",12,true);
+      add("warm","Hangatkan tubuh","Minum hangat / selimut / mandi. Tubuh dulu.",10);
+      break;
+    case "Energized":
+      add("goal1","Tulis 1 tujuan kecil","Yang realistis untuk hari ini.",12);
+      add("help","Bantu 1 hal kecil","Micro-action ke orang sekitar.",12,true);
+      add("tidy","Rapikan 1 benda","Biar energi punya arah.",10);
+      break;
+    case "Calm":
+      add("keep","Catat apa yang bikin kamu cukup tenang","2 kalimat saja. Ini peta.",12);
+      add("walk","Jalan pelan 5 menit","Bukan olahraga. Hanya mengalir.",12,true);
+      add("water1","Minum 1 gelas","Ritual kecil.",8);
+      break;
+    default:
+      add("pause","Pause 1 menit tanpa scroll","Taruh HP sebentar. Rasakan napas 10 kali.",8);
+      add("water1","Minum 1 gelas","Pelan dan cukup.",8,true);
+      add("note","Tulis 1 kalimat keadaanmu","Satu kalimat juga cukup.",10);
+      break;
+  }
+  return ms;
+}
+
+/* =========================
+   PROGRESS
+========================= */
+function xpNeeded(level){ return 50 + (level-1)*10; }
+function toast(msg){
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  setTimeout(()=>el.classList.remove("show"), 900);
+}
+function gainXP(n){
+  state.player.xp += n;
+  while(state.player.xp >= xpNeeded(state.player.level)){
+    state.player.xp -= xpNeeded(state.player.level);
+    state.player.level += 1;
+    autoUnlock();
+    toast("LEVEL UP!");
+  }
+  save();
+  renderHUD();
+}
+
+/* =========================
+   CALM MUSIC (calm.mp3)
+========================= */
+const CALM_AUDIO_VOLUME = 0.35; // adjust
+const CALM_FADE_MS = 350;
+let _fadeTimer = null;
+
+function _clearFade(){
+  if(_fadeTimer){ clearInterval(_fadeTimer); _fadeTimer = null; }
+}
+
+async function startCalmMusic(){
+  const a = document.getElementById("calmAudio");
+  if(!a) return;
+
+  _clearFade();
+  a.loop = true;
+  a.volume = 0.001;
+
+  try{
+    await a.play(); // should succeed because triggered by click to enter calm
+  }catch(e){
+    toast("Audio diblokir browser. Klik Tenang lagi.");
+    return;
+  }
+
+  const steps = 18;
+  const stepMs = Math.max(10, Math.floor(CALM_FADE_MS / steps));
+  let i = 0;
+
+  _fadeTimer = setInterval(()=>{
+    i++;
+    const t = i / steps;
+    a.volume = Math.min(CALM_AUDIO_VOLUME, 0.001 + (CALM_AUDIO_VOLUME - 0.001) * t);
+    if(i >= steps) _clearFade();
+  }, stepMs);
+}
+
+function stopCalmMusic(){
+  const a = document.getElementById("calmAudio");
+  if(!a) return;
+
+  _clearFade();
+  const startV = a.volume ?? CALM_AUDIO_VOLUME;
+
+  const steps = 18;
+  const stepMs = Math.max(10, Math.floor(CALM_FADE_MS / steps));
+  let i = 0;
+
+  _fadeTimer = setInterval(()=>{
+    i++;
+    const t = i / steps;
+    a.volume = Math.max(0.001, startV * (1 - t));
+    if(i >= steps){
+      _clearFade();
+      a.pause();
+      a.currentTime = 0;
+      a.volume = CALM_AUDIO_VOLUME;
+    }
+  }, stepMs);
+}
+
+/* =========================
+   SCREEN NAV
+========================= */
+const screenNames = ["home","wardrobe","story","missions","calm","reflection"];
+
+function showScreen(name){
+  for(const s of screenNames){
+    document.getElementById(`screen-${s}`).classList.toggle("active", s===name);
+  }
+  document.getElementById("frame").className = "frame theme-" + name;
+
+  if(name === "calm") startCalmMusic();
+  else stopCalmMusic();
+
+  if(name==="wardrobe") renderWardrobe();
+  if(name==="story") renderStory();
+  if(name==="missions") renderMissions();
+  if(name==="reflection") renderReflection();
+  if(name==="calm") renderCalm();
+}
+
+/* =========================
+   PET SYMBOLIC VISUALS
+========================= */
+function petCopy(emotion){
+  switch(emotion){
+    case "Anxious": return "Pelan. Aman dulu. Kita pegang hal kecil yang bisa dikontrol.";
+    case "Tired": return "Capek itu valid. Satu langkah kecil pun cukup.";
+    case "Sad": return "Kamu tidak harus buru-buru ‘baik-baik’. Aku temani dulu.";
+    case "Energized": return "Energi kamu bagus. Arahkan ke satu tindakan kecil.";
+    case "Calm": return "Tenang itu prestasi sunyi. Kita simpan polanya pelan-pelan.";
+    default: return "Aku di sini. Kita pelan-pelan.";
+  }
+}
+function petMoodIcon(emotion){
+  switch(emotion){
+    case "Anxious": return "🧣";
+    case "Tired": return "💤";
+    case "Sad": return "🌧";
+    case "Energized": return "✨";
+    case "Calm": return "🌿";
+    default: return "";
+  }
+}
+function applyPetGlow(emotion){
+  const g = document.getElementById("petGlow");
+  if(emotion==="Anxious") g.style.background = "radial-gradient(110px 110px at 50% 50%, rgba(123,124,255,.22), transparent 66%)";
+  else if(emotion==="Sad") g.style.background = "radial-gradient(110px 110px at 50% 50%, rgba(120,170,255,.16), transparent 66%)";
+  else if(emotion==="Energized") g.style.background = "radial-gradient(110px 110px at 50% 50%, rgba(255,106,168,.18), transparent 66%)";
+  else if(emotion==="Calm") g.style.background = "radial-gradient(110px 110px at 50% 50%, rgba(80,255,200,.14), transparent 66%)";
+  else if(emotion==="Tired") g.style.background = "radial-gradient(110px 110px at 50% 50%, rgba(255,255,255,.10), transparent 66%)";
+  else g.style.background = "radial-gradient(110px 110px at 50% 50%, rgba(255,255,255,.09), transparent 66%)";
+}
+
+/* =========================
+   HUD
+========================= */
+function renderHUD(){
+  ensureDaily();
+  autoUnlock();
+
+  document.getElementById("today").textContent = state.daily.dateKey;
+  document.getElementById("streak").textContent = state.player.streak;
+  document.getElementById("emotion").textContent = state.player.lastEmotion;
+
+  const gateOpen = !!(state.daily.reflection && state.daily.reflection.done);
+  document.getElementById("gate").textContent = gateOpen ? "Misi terbuka" : "Refleksi belum selesai";
+
+  document.getElementById("nav-missions").disabled = !gateOpen;
+  document.getElementById("home-missions").disabled = !gateOpen;
+
+  document.getElementById("level").textContent = state.player.level;
+  document.getElementById("xp").textContent = state.player.xp;
+  document.getElementById("xpNeed").textContent = xpNeeded(state.player.level);
+  const pct = Math.max(0, Math.min(100, Math.round((state.player.xp / xpNeeded(state.player.level))*100)));
+  document.getElementById("xpBar").style.width = pct + "%";
+
+  document.getElementById("petBubble").textContent = petCopy(state.player.lastEmotion);
+  document.getElementById("petMood").textContent = petMoodIcon(state.player.lastEmotion);
+  applyPetGlow(state.player.lastEmotion);
+
+  const cos = COSMETICS.find(x=>x.id===state.player.equipped) || COSMETICS[0];
+  document.getElementById("petAcc").textContent = cos.icon || "";
+
+  save();
+}
+
+/* =========================
+   REFLECTION (multi-question)
+========================= */
+let __ansDebounce = null;
+
+function renderReflection(){
+  ensureDailyQuestions();
+  const R = state.daily.reflection;
+
+  document.getElementById("safetyBox").style.display = "none";
+
+  const idx = Math.max(0, Math.min(R.index, R.questions.length-1));
+  R.index = idx;
+
+  const q = R.questions[idx];
+  const total = R.questions.length;
+
+  document.getElementById("qProgress").textContent = `Pertanyaan ${idx+1}/${total}`;
+  document.getElementById("qTag").textContent = `#${q.tag}`;
+  document.getElementById("qText").textContent = q.text;
+
+  const ta = document.getElementById("qAnswer");
+  ta.value = R.answers[q.id] || "";
+
+  const filled = Object.values(R.answers).filter(x => (x||"").trim().length>0).length;
+  document.getElementById("qBarFill").style.width = `${Math.round((filled/total)*100)}%`;
+
+  document.getElementById("btnPrevQ").disabled = R.done || idx === 0;
+  document.getElementById("btnNextQ").disabled = R.done || idx === total-1;
+  document.getElementById("btnFinishReflection").disabled = R.done;
+
+  document.getElementById("refInfo").textContent = R.done
+    ? "Refleksi hari ini sudah selesai. Kamu bisa ke Misi."
+    : "Kamu boleh singkat. Yang penting jujur versi kamu.";
+
+  document.getElementById("reflectionMeta").textContent =
+    `Set hari ini: ${total} pertanyaan • Terisi: ${filled} • Adaptif (prototype): tren & streak`;
+
+  save();
+}
+
+function saveCurrentAnswer(){
+  const R = state.daily.reflection;
+  const q = R.questions[R.index];
+  R.answers[q.id] = (document.getElementById("qAnswer").value || "").trim();
+  save();
+}
+function prevQ(){ saveCurrentAnswer(); if(state.daily.reflection.index>0){ state.daily.reflection.index--; renderReflection(); } }
+function nextQ(){ saveCurrentAnswer(); if(state.daily.reflection.index<state.daily.reflection.questions.length-1){ state.daily.reflection.index++; renderReflection(); } }
+
+function compileReflectionText(){
+  const R = state.daily.reflection;
+  const parts = [];
+  for(const q of R.questions){
+    const a = (R.answers[q.id] || "").trim();
+    if(a) parts.push(a);
+  }
+  return parts.join("\n");
+}
+
+function finishReflection(){
+  saveCurrentAnswer();
+  const all = compileReflectionText();
+  if(!all.trim()){
+    alert("Isi minimal 1 jawaban singkat dulu.");
+    return;
+  }
+  if(containsHighRisk(all)){
+    document.getElementById("safetyBox").style.display = "block";
+    return;
+  }
+
+  const emotion = inferEmotion(all);
+  state.player.lastEmotion = emotion;
+
+  state.daily.reflection.done = true;
+
+  const today = state.daily.dateKey;
+  const last = state.player.lastReflectionDate;
+  if(!last) state.player.streak = 1;
+  else{
+    const diff = dayDiff(last, today);
+    if(diff===1) state.player.streak += 1;
+    else if(diff===0) {}
+    else state.player.streak = 1;
+  }
+  state.player.lastReflectionDate = today;
+
+  state.memory.emotionHistory.push({dateKey: today, emotion});
+  while(state.memory.emotionHistory.length > 14) state.memory.emotionHistory.shift();
+
+  state.daily.missions = generateMissions(emotion);
+
+  gainXP(12);
+  toast("Refleksi selesai +12 XP");
+
+  save();
+  renderHUD();
+  showScreen("missions");
+}
+
+/* =========================
+   MISSIONS
+========================= */
+function renderMissions(){
+  const box = document.getElementById("missionsList");
+  box.innerHTML = "";
+
+  const gateOpen = !!(state.daily.reflection && state.daily.reflection.done);
+  if(!gateOpen){
+    box.innerHTML = `<div class="dangerBox" style="border-color: rgba(255,255,255,.14); background: rgba(255,255,255,.06)">
+      Refleksi harian belum selesai. Selesaikan refleksi untuk membuka misi.
+    </div>`;
+    document.getElementById("missionsNote").textContent = "Gate: Refleksi belum selesai.";
+    document.getElementById("missionsCount").textContent = "0/0 selesai";
+    return;
+  }
+
+  const ms = state.daily.missions || [];
+  if(!ms.length){
+    box.innerHTML = `<div class="small">Misi belum tersedia.</div>`;
+    document.getElementById("missionsCount").textContent = "0/0 selesai";
+    return;
+  }
+
+  let done = ms.filter(m=>m.done).length;
+  document.getElementById("missionsCount").textContent = `${done}/${ms.length} selesai`;
+  document.getElementById("missionsNote").textContent = "Pilih yang paling ringan. Tidak perlu sempurna.";
+
+  for(const m of ms){
+    const el = document.createElement("div");
+    el.className = "mission";
+
+    const left = document.createElement("div");
+    left.style.flex = "1";
+    left.innerHTML = `
+      <div class="t">${escapeHtml(m.title)}</div>
+      <div class="d">${escapeHtml(m.desc)}</div>
+      <div class="tag">+${m.xp} XP</div>
+    `;
+
+    const right = document.createElement("div");
+    right.style.display="flex";
+    right.style.flexDirection="column";
+    right.style.gap="8px";
+    right.style.alignItems="flex-end";
+    right.style.minWidth="220px";
+
+    const btn = document.createElement("button");
+    btn.className = "btn " + (m.done ? "ghost" : "primary");
+    btn.textContent = m.done ? "Selesai ✅" : "Tandai Selesai";
+    btn.disabled = m.done;
+    btn.onclick = ()=>{
+      m.done = true;
+      gainXP(m.xp);
+      toast(`+${m.xp} XP`);
+      save();
+      renderHUD();
+      renderMissions();
+    };
+    right.appendChild(btn);
+
+    if(m.proof){
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.placeholder = "Bukti opsional (singkat)…";
+      inp.value = m.proofText || "";
+      inp.oninput = ()=>{ m.proofText = inp.value; save(); };
+      right.appendChild(inp);
+
+      const bonus = document.createElement("button");
+      bonus.className="btn";
+      bonus.textContent = m.proofClaimed ? "Bonus diambil" : "Ambil Bonus (+8 XP)";
+      bonus.disabled = !m.done || m.proofClaimed;
+      bonus.onclick = ()=>{
+        if(!m.proofText || m.proofText.trim().length < 3){
+          alert("Kalau mau bonus, isi bukti singkat (3+ karakter).");
+          return;
+        }
+        m.proofClaimed = true;
+        gainXP(8);
+        toast("+8 XP");
+        save();
+        renderHUD();
+        renderMissions();
+      };
+      right.appendChild(bonus);
+    }
+
+    el.appendChild(left);
+    el.appendChild(right);
+    box.appendChild(el);
+  }
+}
+
+/* =========================
+   WARDROBE
+========================= */
+function renderWardrobe(){
+  const grid = document.getElementById("wardrobeGrid");
+  grid.innerHTML = "";
+
+  for(const c of COSMETICS){
+    const unlocked = state.player.unlocked.includes(c.id);
+    const equipped = state.player.equipped === c.id;
+
+    const item = document.createElement("div");
+    item.className = "item";
+    item.innerHTML = `
+      <div class="icon">${c.icon || "—"}</div>
+      <div class="name">${escapeHtml(c.name)}</div>
+      <div class="req">${unlocked ? "Terbuka ✅" : "Butuh Level " + c.req}</div>
+    `;
+
+    const btn = document.createElement("button");
+    btn.className = "btn " + (equipped ? "primary" : "");
+    btn.textContent = equipped ? "Dipakai" : "Pakai";
+    btn.disabled = !unlocked || equipped;
+    btn.onclick = ()=>{
+      state.player.equipped = c.id;
+      save();
+      toast("Dipakai");
+      renderHUD();
+      renderWardrobe();
+      document.getElementById("equippedTag").textContent = "Dipakai: " + c.name;
+    };
+
+    item.appendChild(btn);
+    grid.appendChild(item);
+  }
+
+  const eq = COSMETICS.find(x=>x.id===state.player.equipped) || COSMETICS[0];
+  document.getElementById("equippedTag").textContent = "Dipakai: " + eq.name;
+}
+
+/* =========================
+   STORY + PRIVACY
+========================= */
+function renderTrend(){
+  const recent = state.memory.emotionHistory.slice(-7);
+  const el = document.getElementById("trend");
+  if(!el) return;
+  if(!recent.length){ el.textContent="Tren 7 hari: -"; return; }
+  const count = {};
+  for(const r of recent) count[r.emotion]=(count[r.emotion]||0)+1;
+  let best="Neutral", bestN=0;
+  for(const k in count) if(count[k]>bestN){ best=k; bestN=count[k]; }
+  el.textContent = `Tren 7 hari: paling sering ${best} (${bestN}x)`;
+}
+function renderStory(){
+  const last = state.memory.story[state.memory.story.length-1];
+  document.getElementById("storySaved").textContent = last
+    ? `Terakhir disimpan: ${new Date(last.ts).toLocaleString()}`
+    : "Belum ada yang disimpan.";
+  renderTrend();
+}
+function saveStory(){
+  const text = (document.getElementById("storyText").value || "").trim();
+  if(!text){
+    alert("Kalau mau simpan, isi sedikit dulu. Singkat boleh.");
+    return;
+  }
+  state.memory.story.push({ts: Date.now(), text});
+  gainXP(4);
+  toast("Tersimpan +4 XP");
+  save();
+  renderHUD();
+  renderStory();
+}
+function exportData(){
+  const data = JSON.stringify(state, null, 2);
+  navigator.clipboard?.writeText(data).then(()=>{
+    alert("Data diekspor dan disalin ke clipboard.");
+  }).catch(()=> prompt("Salin JSON ini:", data));
+}
+function importData(){
+  const raw = prompt("Tempel JSON hasil export:");
+  if(!raw) return;
+  try{
+    state = migrate(JSON.parse(raw));
+    ensureDaily();
+    autoUnlock();
+    save();
+    renderHUD();
+    showScreen("home");
+    alert("Import berhasil.");
+  }catch(e){
+    alert("Gagal import. Pastikan JSON valid.");
+  }
+}
+function wipeData(){
+  if(!confirm("Yakin hapus data lokal? Tidak bisa dibatalkan.")) return;
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+}
+
+/* =========================
+   CALM NOTE
+========================= */
+function renderCalm(){
+  const last = state.memory.calmNotes[state.memory.calmNotes.length-1];
+  document.getElementById("calmSaved").textContent = last
+    ? `Terakhir dicatat: ${new Date(last.ts).toLocaleString()}`
+    : "Belum ada catatan.";
+}
+function saveCalmNote(){
+  const text = (document.getElementById("calmNote").value || "").trim();
+  if(!text) return;
+  state.memory.calmNotes.push({ts: Date.now(), text});
+  save();
+  renderCalm();
+}
+
+/* =========================
+   PET INTERACTION (NO XP)
+========================= */
+function patPet(){
+  const pet = document.getElementById("pet");
+  pet.classList.remove("pat");
+  void pet.offsetWidth;
+  pet.classList.add("pat");
+
+  const b = document.getElementById("petBubble");
+  b.textContent = "Aku dengar. Pelan saja.";
+  setTimeout(()=>{ b.textContent = petCopy(state.player.lastEmotion); }, 950);
+}
+
+/* =========================
+   UTIL
+========================= */
+function escapeHtml(s){
+  return (s||"")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;");
+}
+
+/* =========================
+   WIRING
+========================= */
+// Home buttons
+document.getElementById("home-wardrobe").addEventListener("click", ()=> showScreen("wardrobe"));
+document.getElementById("home-story").addEventListener("click", ()=> showScreen("story"));
+document.getElementById("home-missions").addEventListener("click", ()=> showScreen("missions"));
+document.getElementById("home-calm").addEventListener("click", ()=> showScreen("calm"));
+document.getElementById("home-reflection").addEventListener("click", ()=> showScreen("reflection"));
+
+// Hotbar
+document.getElementById("nav-home").addEventListener("click", ()=> showScreen("home"));
+document.getElementById("nav-wardrobe").addEventListener("click", ()=> showScreen("wardrobe"));
+document.getElementById("nav-story").addEventListener("click", ()=> showScreen("story"));
+document.getElementById("nav-missions").addEventListener("click", ()=> showScreen("missions"));
+document.getElementById("nav-calm").addEventListener("click", ()=> showScreen("calm"));
+document.getElementById("nav-reflection").addEventListener("click", ()=> showScreen("reflection"));
+
+// Pet
+document.getElementById("pet").addEventListener("click", patPet);
+
+// Story
+document.getElementById("btnStorySave").addEventListener("click", saveStory);
+document.getElementById("btnStoryClear").addEventListener("click", ()=>{ document.getElementById("storyText").value=""; });
+document.getElementById("btnExport").addEventListener("click", exportData);
+document.getElementById("btnImport").addEventListener("click", importData);
+document.getElementById("btnWipe").addEventListener("click", wipeData);
+
+// Calm note
+document.getElementById("calmNote").addEventListener("change", saveCalmNote);
+document.getElementById("calmNote").addEventListener("blur", saveCalmNote);
+
+// Reflection
+document.getElementById("btnPrevQ").addEventListener("click", prevQ);
+document.getElementById("btnNextQ").addEventListener("click", nextQ);
+document.getElementById("btnFinishReflection").addEventListener("click", finishReflection);
+
+document.getElementById("qAnswer").addEventListener("input", ()=>{
+  clearTimeout(__ansDebounce);
+  __ansDebounce = setTimeout(()=>{
+    saveCurrentAnswer();
+    const R = state.daily.reflection;
+    const total = R.questions.length || 1;
+    const filled = Object.values(R.answers).filter(x => (x||"").trim().length>0).length;
+    document.getElementById("qBarFill").style.width = `${Math.round((filled/total)*100)}%`;
+  }, 240);
+});
+
+/* =========================
+   BOOT
+========================= */
+ensureDaily();
+autoUnlock();
+renderHUD();
+save();
+showScreen("home");
+
+// daily rollover check (if tab stays open)
+setInterval(()=>{
+  const before = state.daily.dateKey;
+  ensureDaily();
+  if(state.daily.dateKey !== before){
+    toast("Hari baru ✨");
+    renderHUD();
+    const active = document.querySelector(".screen.active");
+    if(active && active.id === "screen-reflection") renderReflection();
+  }
+}, 8000);
+</script>
+</body>
+</html>
